@@ -30,7 +30,10 @@ app.use(
 
 const storage = multer.diskStorage({
 	destination: function (req, file, cb) {
-		const userSessionDir = path.join(UPLOADS_DIR, req.session.id)
+
+		if (!req.body.token) return
+		
+		const userSessionDir = path.join(UPLOADS_DIR, req.body.token)
 		fs.mkdirSync(userSessionDir, { recursive: true })
 		cb(null, userSessionDir)
 	},
@@ -42,8 +45,11 @@ const storage = multer.diskStorage({
 const upload = multer({ storage })
 
 app.post('/upload', upload.single('file'), async (req, res, next) => {
+
+	if (!req.body.token) return
+	
 	const filename = req.file.filename
-	const userSessionDir = `${UPLOADS_DIR}/${req.session.id}`
+	const userSessionDir = `${UPLOADS_DIR}/${req.body.token}`
 
 	await fs.promises.mkdir(userSessionDir, { recursive: true })
 
@@ -66,7 +72,7 @@ app.post('/upload', upload.single('file'), async (req, res, next) => {
 
 		fs.renameSync(filePath, newFilePath)
 
-		const optimizedUserSessionDir = path.join(OPTIMIZED_DIR, req.session.id)
+		const optimizedUserSessionDir = path.join(OPTIMIZED_DIR, req.body.token)
 
 		await fs.promises.mkdir(optimizedUserSessionDir, { recursive: true })
 
