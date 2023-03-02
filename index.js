@@ -31,8 +31,12 @@ app.use(
 const storage = multer.diskStorage({
 	destination: function (req, file, cb) {
 
-		if (!req.body.token) return
-		
+		if (!req.body?.token) {
+			const error = new Error()
+			error.code = 400
+			return cb(error)
+		}
+
 		const userSessionDir = path.join(UPLOADS_DIR, req.body.token)
 		fs.mkdirSync(userSessionDir, { recursive: true })
 		cb(null, userSessionDir)
@@ -46,8 +50,6 @@ const upload = multer({ storage })
 
 app.post('/upload', upload.single('file'), async (req, res, next) => {
 
-	if (!req.body.token) return
-	
 	const filename = req.file.filename
 	const userSessionDir = `${UPLOADS_DIR}/${req.body.token}`
 
@@ -100,9 +102,12 @@ app.post('/upload', upload.single('file'), async (req, res, next) => {
 	})
 })
 
-app.use((err, req, res, next) => {
-	console.error(err.stack)
-	res.status(500).send({ error: 'Something broke!' })
+app.use(function (err, req, res, next) {
+	if (err) {
+		res.status(err.code).send()
+	} else {
+		next()
+	}
 })
 
 app.listen(5001, () => {
