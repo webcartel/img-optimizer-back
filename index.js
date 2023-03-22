@@ -3,6 +3,7 @@ import session from 'express-session'
 import multer from 'multer'
 import crypto from 'crypto'
 import cors from 'cors'
+import bodyParser from 'body-parser'
 import imagemin from 'imagemin'
 import imageminPngquant from 'imagemin-pngquant'
 import fs from 'fs'
@@ -20,6 +21,9 @@ fs.mkdirSync(OPTIMIZED_DIR, { recursive: true })
 app.use(cors())
 app.use(express.static('./'))
 
+app.use(bodyParser.urlencoded({ extended: false }))
+app.use(bodyParser.json())
+
 app.use(
 	session({
 		secret: 'secret-key',
@@ -30,7 +34,6 @@ app.use(
 
 const storage = multer.diskStorage({
 	destination: function (req, file, cb) {
-
 		if (!req.body?.token) {
 			const error = new Error()
 			error.code = 400
@@ -49,7 +52,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage })
 
 app.post('/upload', upload.single('file'), async (req, res, next) => {
-
 	const filename = req.file.filename
 	const userSessionDir = `${UPLOADS_DIR}/${req.body.token}`
 
@@ -100,6 +102,45 @@ app.post('/upload', upload.single('file'), async (req, res, next) => {
 			fileSizeInBytes,
 		})
 	})
+})
+
+app.get('/download/:token/:filename/:realfilename', function (req, res) {
+	res.download(`./optimized/${req.params.token}/${req.params.filename}`, req.params.realfilename)
+})
+
+app.post('/delete', function (req, res, next) {
+	if (req.body.token && req.body.filename) {
+		const uploadedFilePath = `${UPLOADS_DIR}/${req.body.token}/${req.body.filename}`
+		const optimizedFilePath = `${OPTIMIZED_DIR}/${req.body.token}/${req.body.filename}`
+
+		const uploadedFileExists = fs.existsSync(uploadedFilePath)
+		const optimizedFileExists = fs.existsSync(optimizedFilePath)
+
+		if (!uploadedFileExists && !optimizedFileExists) {
+			return res.status(404).json({ message: 'File not found' })
+		}
+
+		const promises = []
+
+		if (uploadedFileExists) {
+			promises.push(fs.promises.unlink(uploadedFilePath))
+		}
+
+		if (optimizedFileExists) {
+			promises.push(fs.promises.unlink(optimizedFilePath))
+		}
+
+		Promise.all(promises)
+			.then(() => {
+				res.status(200).json({ ...req.body })
+			})
+			.catch((err) => {
+				console.error(err)
+				res.status(500).json({ message: 'Server error' })
+			})
+	} else {
+		res.status(400).send()
+	}
 })
 
 app.use(function (err, req, res, next) {
