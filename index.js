@@ -9,6 +9,7 @@ import imageminPngquant from 'imagemin-pngquant'
 import fs from 'fs'
 import * as url from 'url'
 import path from 'path'
+import archiver from 'archiver'
 
 const app = express()
 
@@ -142,6 +143,38 @@ app.post('/delete', function (req, res, next) {
 		res.status(400).send()
 	}
 })
+
+app.post('/download-zip', (req, res) => {
+	const folderName = req.body.token
+	const folderPath = `${OPTIMIZED_DIR}/${folderName}`
+
+	if (!fs.existsSync(folderPath)) {
+		res.status(404).send('Folder not found')
+		return
+	}
+
+	const archive = archiver('zip', {
+		zlib: { level: 0 },
+	})
+
+	const files = fs.readdirSync(folderPath)
+
+	const filteredFiles = req.body.files.map(file => file.file_server_name).filter(serverName => files.includes(serverName))
+
+	filteredFiles.forEach(serverName => {
+		const realName = req.body.files.find(file => file.file_server_name === serverName).file_real_name
+		const filePath = `${folderPath}/${serverName}`
+		archive.append(fs.createReadStream(filePath), { name: realName })
+	})
+
+	archive.finalize()
+	const now = new Date()
+	const timestamp = `${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}__${now.getDate()}_${now.getMonth() + 1}_${now.getFullYear()}`
+	res.type('application/zip')
+	res.attachment(`optimized_files__${timestamp}.zip`)
+	archive.pipe(res)
+})
+
 
 app.use(function (err, req, res, next) {
 	if (err) {
