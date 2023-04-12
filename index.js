@@ -6,10 +6,12 @@ import cors from 'cors'
 import bodyParser from 'body-parser'
 import imagemin from 'imagemin'
 import imageminPngquant from 'imagemin-pngquant'
+import imageminJpegtran from 'imagemin-jpegtran';
 import fs from 'fs'
 import * as url from 'url'
 import path from 'path'
 import archiver from 'archiver'
+import { fileTypeFromFile } from 'file-type'
 
 const app = express()
 
@@ -83,9 +85,25 @@ app.post('/upload', upload.single('file'), async (req, res, next) => {
 
 		const optimizedFilePath = path.join(optimizedUserSessionDir, `${newFilename}.${ext}`)
 
+		const fileType = await fileTypeFromFile(newFilePath)
+
+		if ( fileType === undefined || ( fileType.mime !== 'image/png' && fileType.mime !== 'image/jpeg' ) ) {
+			res.status(406).json({
+				error: {
+					code: 1,
+					text: 'Files of this type are not accepted'
+				} 
+			})
+			return
+		}
+
 		await imagemin([newFilePath], {
 			destination: optimizedUserSessionDir,
 			plugins: [
+				imageminJpegtran({
+					progressive: true,
+					arithmetic: false,
+				}),
 				imageminPngquant({
 					speed: 4,
 					strip: true,
