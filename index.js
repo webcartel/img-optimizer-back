@@ -91,7 +91,8 @@ app.post('/upload', upload.single('file'), async (req, res, next) => {
 			res.status(406).json({
 				error: {
 					code: 1,
-					text: 'Files of this type are not accepted'
+					text: 'Files of this type are not accepted',
+					filename: filename,
 				} 
 			})
 			return
