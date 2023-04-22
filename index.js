@@ -44,6 +44,9 @@ const storage = multer.diskStorage({
 		}
 
 		const userSessionDir = path.join(UPLOADS_DIR, req.body.token)
+		if (!fs.existsSync(UPLOADS_DIR)) {
+			fs.mkdirSync(UPLOADS_DIR)
+		}
 		fs.mkdirSync(userSessionDir, { recursive: true })
 		cb(null, userSessionDir)
 	},
@@ -52,7 +55,32 @@ const storage = multer.diskStorage({
 	},
 })
 
-const upload = multer({ storage })
+const imageFilter = function (req, file, cb) {
+	const allowedMimeTypes = ['image/jpeg', 'image/png']
+	if ( allowedMimeTypes.includes(file.mimetype) ) {
+		cb(null, true)
+	}
+	else {
+		const error = new Error()
+		error.message = {
+			error: {
+				code: 1,
+				text: 'Files of this type are not accepted',
+				filename: file.originalname,
+			}
+		}
+		error.code = 406
+		cb(error)
+	}
+}
+
+const upload = multer({
+	storage: storage,
+	// limits: { fileSize: 5 * 1024 * 1024 },
+	limits: { fileSize: 1024 * 512 },
+	fileFilter: imageFilter,
+})
+
 
 app.post('/upload', upload.single('file'), async (req, res, next) => {
 	const filename = req.file.filename
@@ -197,7 +225,18 @@ app.post('/download-zip', (req, res) => {
 
 app.use(function (err, req, res, next) {
 	if (err) {
-		res.status(err.code).send()
+		if ( err.code === 'LIMIT_FILE_SIZE' ) {
+			res.status(413).json({
+				error: {
+					code: 2,
+					text: 'File is too large',
+					filename: req.body.filename,
+				}
+			})
+		}
+		else {
+			res.status(err.code).send(err.message)
+		}
 	} else {
 		next()
 	}
